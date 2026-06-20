@@ -1,0 +1,13 @@
+[package]
+name = "annotate_pext"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.6.1", features = ["derive"] }
+csv = "1.4.0"
+flate2 = "1.1.9"
+noodles-gff = "0.57.0"
+rustc-hash = "2.1.2"
+serde = { version = "1.0.228", features = ["derive"] }
+strum = { version = "0.28.0", features = ["derive"] }
