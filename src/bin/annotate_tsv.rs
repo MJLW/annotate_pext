@@ -33,7 +33,7 @@ struct Args {
     #[arg(long)]
     tpms: PathBuf,
 
-    #[arg(long)]
+    #[arg(long, default_value = "PEXT")]
     output_tag: String,
 
     #[arg(long)]
