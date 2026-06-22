@@ -34,6 +34,9 @@ struct Args {
     tpms: PathBuf,
 
     #[arg(long)]
+    output_tag: String,
+
+    #[arg(long)]
     output: PathBuf,
 }
 
@@ -81,10 +84,11 @@ fn column_sums(row_matrix: &[&Vec<f32>]) -> Vec<f32> {
 }
 
 // TODO: Rewrite this method, it is a mess.
-fn annotate_tsv<P: AsRef<Path>>(
+fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
     input_path: P,
     grouping: &GroupingColumns,
     table: &GTExTable,
+    output_tag: S,
     output_path: P,
 ) -> Result<(), Box<dyn Error>> {
     let mut rdr = build_tsv_reader(input_path)?;
@@ -122,7 +126,7 @@ fn annotate_tsv<P: AsRef<Path>>(
     for s in &header {
         wtr.write_field(s)?;
     }
-    wtr.write_field("PEXT")?;
+    wtr.write_field(output_tag.as_ref())?;
     wtr.write_record(None::<&[u8]>)?;
     wtr.flush()?;
 
@@ -420,7 +424,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let table = GTExTable::read(args.tpms)?;
-    annotate_tsv(args.variants, &grouping, &table, args.output)?;
+    annotate_tsv(
+        args.variants,
+        &grouping,
+        &table,
+        &args.output_tag,
+        args.output,
+    )?;
 
     Ok(())
 }
