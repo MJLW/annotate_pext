@@ -11,8 +11,8 @@ use flate2::read::GzDecoder;
 use noodles_gff::io::Reader as GFF3Reader;
 use serde::Deserialize;
 
-mod gtex_table;
-mod utils;
+use annotate_pext::gtex_table::GTExTable;
+use annotate_pext::utils::build_tsv_reader;
 
 const TRANSCRIPT_TYPE: &[u8] = "transcript".as_bytes();
 const ATTRIBUTE_TRANSCRIPT_ID: &[u8] = "transcript_id".as_bytes();
@@ -36,8 +36,8 @@ struct Args {
     tissue_blacklist: PathBuf,
 
     #[arg(long)]
-    gff3: PathBuf,
-
+    coding_transcripts: PathBuf,
+    // gff3: PathBuf,
     #[arg(long)]
     output: PathBuf,
 }
@@ -51,7 +51,7 @@ struct SampleAttribute {
     tissue: String,
 }
 
-fn read_tissue_blacklist<P: AsRef<Path>>(path: P) -> Result<Vec<String>, Box<dyn Error>> {
+fn read_lines<P: AsRef<Path>>(path: P) -> Result<Vec<String>, Box<dyn Error>> {
     Ok(read_to_string(path)?
         .lines()
         .map(|s| s.to_string())
@@ -62,7 +62,7 @@ fn read_sample_attributes<P: AsRef<Path>, S: AsRef<str>>(
     path: P,
     tissue_blacklist: &[S],
 ) -> Result<HashMap<String, Vec<String>>, Box<dyn Error>> {
-    let mut rdr = utils::build_tsv_reader(path)?;
+    let mut rdr = build_tsv_reader(path)?;
 
     let sample_attributes: Result<Vec<SampleAttribute>, _> =
         rdr.deserialize::<SampleAttribute>().collect();
@@ -144,16 +144,14 @@ fn read_coding_transcripts_from_gff3<P: AsRef<Path>>(
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let blacklisted_tissues: Vec<String> = read_tissue_blacklist(args.tissue_blacklist)?;
+    let blacklisted_tissues: Vec<String> = read_lines(args.tissue_blacklist)?;
     let samples_per_tissue =
         read_sample_attributes(args.gtex_sample_attributes, &blacklisted_tissues)?;
-    let coding_transcripts = read_coding_transcripts_from_gff3(args.gff3)?;
+    // let coding_transcripts = read_coding_transcripts_from_gff3(args.gff3)?;
+    let coding_transcripts = read_lines(args.coding_transcripts)?;
 
-    let table = gtex_table::GTExTable::create_from_gtex(
-        args.gtex_tpms,
-        &samples_per_tissue,
-        &coding_transcripts,
-    )?;
+    let table =
+        GTExTable::create_from_gtex(args.gtex_tpms, &samples_per_tissue, &coding_transcripts)?;
     table.write(args.output)?;
 
     Ok(())

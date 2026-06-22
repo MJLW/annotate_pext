@@ -11,3 +11,4 @@ noodles-gff = "0.57.0"
 rustc-hash = "2.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
 strum = { version = "0.28.0", features = ["derive"] }
+

@@ -7,20 +7,28 @@ use serde::Deserialize;
 use crate::utils::build_tsv_reader;
 
 #[derive(Debug, Deserialize)]
-struct GTExRowKey {
-    transcript_id: String,
-    gene_id: String,
+pub struct GTExRowKey {
+    pub transcript_id: String,
+    pub gene_id: String,
 }
 
-struct GTExRow {
-    key: GTExRowKey,
-    tpms: Vec<f32>,
+pub struct GTExRow {
+    pub key: GTExRowKey,
+    pub tpms: Vec<f32>,
 }
 
 pub struct GTExTable {
     rows: Vec<GTExRow>,
     // Tissue order is the same for each row (columns)
     tissues: Vec<String>,
+}
+
+fn strip_ensembl_version<S: AsRef<str>>(s: S) -> Result<String, Box<dyn Error>> {
+    Ok(s.as_ref()
+        .split_once(".")
+        .map(|(id, _)| id)
+        .ok_or_else(|| format!("Failed to remove version from ENSEMBL ID: {}", s.as_ref()))?
+        .to_string())
 }
 
 impl GTExTable {
@@ -60,7 +68,9 @@ impl GTExTable {
             let key: GTExRowKey = record.deserialize(Some(&headers))?;
 
             // Not coding, skip!
-            if !hashed_coding_transcripts.contains(key.transcript_id.as_str()) {
+            if !hashed_coding_transcripts
+                .contains(strip_ensembl_version(key.transcript_id.clone())?.as_str())
+            {
                 continue;
             }
 
@@ -78,8 +88,13 @@ impl GTExTable {
                 medians.push(median);
             }
 
+            let unversioned_key: GTExRowKey = GTExRowKey {
+                transcript_id: strip_ensembl_version(key.transcript_id)?,
+                gene_id: strip_ensembl_version(key.gene_id)?,
+            };
+
             rows.push(GTExRow {
-                key: key,
+                key: unversioned_key,
                 tpms: medians,
             });
         }
@@ -146,5 +161,30 @@ impl GTExTable {
         wtr.flush()?;
 
         Ok(())
+    }
+
+    pub fn get_gene_transcripts<S: AsRef<str>>(&self, gene_id: S) -> Vec<&GTExRow> {
+        self.rows
+            .iter()
+            .filter(|row| row.key.gene_id == gene_id.as_ref())
+            .collect()
+    }
+
+    pub fn get_transcript<S: AsRef<str>>(
+        &self,
+        transcript_id: S,
+    ) -> Result<&GTExRow, Box<dyn Error>> {
+        let transcript_row: &GTExRow = self
+            .rows
+            .iter()
+            .find(|row| row.key.transcript_id == transcript_id.as_ref())
+            .ok_or_else(|| {
+                format!(
+                    "Could not find transcript `{}` in the condensed GTEx table.",
+                    transcript_id.as_ref()
+                )
+            })?;
+
+        Ok(transcript_row)
     }
 }
