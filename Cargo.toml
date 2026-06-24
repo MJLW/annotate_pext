@@ -7,7 +7,10 @@ edition = "2024"
 clap = { version = "4.6.1", features = ["derive"] }
 csv = "1.4.0"
 flate2 = "1.1.9"
+noodles-bgzf = "0.47.0"
+noodles-core = "0.20.0"
 noodles-gff = "0.57.0"
+noodles-vcf = "0.88.0"
 rustc-hash = "2.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
 strum = { version = "0.28.0", features = ["derive"] }

@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use annotate_pext::{gtex_table::GTExRow, gtex_table::GTExTable, utils::build_tsv_reader};
+use annotate_pext::{gtex_table::GTExTable, utils::build_tsv_reader};
 use clap::Parser;
 use csv::StringRecord;
 
@@ -184,10 +184,14 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
                 } else {
                     // Already tested that there is at least one group, so we can just unwrap
                     let gene_id = group_values.first().unwrap().last().unwrap();
-                    let gene_transcripts: Vec<&GTExRow> = table.get_gene_transcripts(gene_id);
+                    let gene_transcript_ids = table.get_gene_transcripts(&gene_id)?;
+                    let gene_transcript_tpms_result: Result<Vec<&Vec<f32>>, _> =
+                        gene_transcript_ids
+                            .iter()
+                            .map(|transcript_id| table.get_transcript_tpms(transcript_id))
+                            .collect();
 
-                    let gene_transcript_tpms: Vec<&Vec<f32>> =
-                        gene_transcripts.iter().map(|row| &row.tpms).collect();
+                    let gene_transcript_tpms = gene_transcript_tpms_result?;
 
                     let gene_tpms: Vec<f32> = column_sums(&gene_transcript_tpms);
 
@@ -211,10 +215,11 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
 
                     let mut group_scores: Vec<Option<f32>> = Vec::with_capacity(group_values.len());
                     for transcript_ids in grouped_transcript_ids {
-                        let group_transcript_tpms: Vec<&Vec<f32>> = gene_transcripts
+                        let group_transcript_tpms: Vec<&Vec<f32>> = gene_transcript_ids
                             .iter()
-                            .filter(|row| transcript_ids.contains(&row.key.transcript_id.as_str()))
-                            .map(|row| &row.tpms)
+                            .zip(&gene_transcript_tpms)
+                            .filter(|(id, _)| transcript_ids.contains(&id.as_str()))
+                            .map(|(_, &tpms)| tpms)
                             .collect();
 
                         let group_tpms: Vec<f32> = column_sums(&group_transcript_tpms);
@@ -334,10 +339,12 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
 
     // Already tested that there is at least one group, so we can just unwrap
     let gene_id = group_values.first().unwrap().last().unwrap();
-    let gene_transcripts: Vec<&GTExRow> = table.get_gene_transcripts(gene_id);
-
-    let gene_transcript_tpms: Vec<&Vec<f32>> =
-        gene_transcripts.iter().map(|row| &row.tpms).collect();
+    let gene_transcript_ids = table.get_gene_transcripts(&gene_id)?;
+    let gene_transcript_tpms_result: Result<Vec<&Vec<f32>>, _> = gene_transcript_ids
+        .iter()
+        .map(|transcript_id| table.get_transcript_tpms(transcript_id))
+        .collect();
+    let gene_transcript_tpms = gene_transcript_tpms_result?;
 
     let gene_tpms: Vec<f32> = column_sums(&gene_transcript_tpms);
 
@@ -361,10 +368,11 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
 
     let mut group_scores: Vec<Option<f32>> = Vec::with_capacity(group_values.len());
     for transcript_ids in grouped_transcript_ids {
-        let group_transcript_tpms: Vec<&Vec<f32>> = gene_transcripts
+        let group_transcript_tpms: Vec<&Vec<f32>> = gene_transcript_ids
             .iter()
-            .filter(|row| transcript_ids.contains(&row.key.transcript_id.as_str()))
-            .map(|row| &row.tpms)
+            .zip(&gene_transcript_tpms)
+            .filter(|(id, _)| transcript_ids.contains(&id.as_str()))
+            .map(|(_, &tpms)| tpms)
             .collect();
 
         let group_tpms: Vec<f32> = column_sums(&group_transcript_tpms);

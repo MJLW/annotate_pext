@@ -15,7 +15,10 @@ dependencies = [
  "clap",
  "csv",
  "flate2",
+ "noodles-bgzf",
+ "noodles-core",
  "noodles-gff",
+ "noodles-vcf",
  "rustc-hash",
  "serde",
  "strum",
@@ -361,6 +364,34 @@ dependencies = [
  "noodles-bgzf",
  "noodles-core",
  "noodles-csi",
+ "percent-encoding",
+]
+
+[[package]]
+name = "noodles-tabix"
+version = "0.62.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5dceef2f7228d2977133f7b1a707c00ce0fdcf7c171e60b1e0286df0d8886fe"
+dependencies = [
+ "bstr",
+ "indexmap",
+ "noodles-bgzf",
+ "noodles-core",
+ "noodles-csi",
+]
+
+[[package]]
+name = "noodles-vcf"
+version = "0.88.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "234b3ba31b05ffd6971d838a41ca5a94e902d424ab293cd3b520776293baa96c"
+dependencies = [
+ "indexmap",
+ "memchr",
+ "noodles-bgzf",
+ "noodles-core",
+ "noodles-csi",
+ "noodles-tabix",
  "percent-encoding",
 ]
 
