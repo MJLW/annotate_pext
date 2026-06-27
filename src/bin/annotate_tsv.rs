@@ -6,10 +6,8 @@ use std::{
 };
 
 use annotate_pext::{
-    consequence::Consequence,
-    consequences::Consequences,
-    gtex_table::GTExTable,
-    utils::{build_tsv_reader, calculate_pext},
+    consequence::Consequence, consequences::Consequences, gtex_table::GTExTable,
+    pext::calculate_pext, utils::build_tsv_reader,
 };
 use clap::Parser;
 use csv::StringRecord;

@@ -10,8 +10,8 @@ use annotate_pext::{
     consequence::Consequence,
     consequences::Consequences,
     gtex_table::GTExTable,
+    pext::calculate_pext,
     record::{Annotated, format_scores},
-    utils::calculate_pext,
 };
 use clap::{Parser, ValueEnum};
 use noodles_bgzf;

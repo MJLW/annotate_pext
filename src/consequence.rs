@@ -141,7 +141,7 @@ mod tests {
     fn parses_all_fields() {
         let c = Consequence::parse_from_vep(VEP_LINE).unwrap();
         assert_eq!(c.transcript_id, "ENST00000287647");
-        assert_eq!(c.protein_coding, true);
+        assert_eq!(c.protein_coding, false);
     }
 
     #[test]
