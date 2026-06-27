@@ -5,7 +5,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use annotate_pext::{gtex_table::GTExTable, utils::build_tsv_reader};
+use annotate_pext::{
+    consequence::Consequence,
+    consequences::Consequences,
+    gtex_table::GTExTable,
+    utils::{build_tsv_reader, calculate_pext},
+};
 use clap::Parser;
 use csv::StringRecord;
 
@@ -48,15 +53,6 @@ struct GroupingColumns {
     group_columns: Vec<String>,
 }
 
-#[derive(Debug)]
-struct GroupingData {
-    variant_values: Vec<String>,
-    transcript_id: String,
-    gene_id: String,
-    protein_coding: bool,
-    group_values: Vec<String>,
-}
-
 fn find_header_index<S: AsRef<str>>(
     header: HashMap<&str, usize>,
     column: S,
@@ -71,16 +67,6 @@ fn find_header_index<S: AsRef<str>>(
         ))?;
 
     Ok(index)
-}
-
-fn column_sums(row_matrix: &[&Vec<f32>]) -> Vec<f32> {
-    row_matrix.iter().fold(
-        vec![0.0; row_matrix.first().map_or(0, |row| row.len())], // Get number of columns
-        |mut acc, row| {
-            acc.iter_mut().zip(*row).for_each(|(a, v)| *a += v);
-            acc
-        },
-    )
 }
 
 // TODO: Rewrite this method, it is a mess.
@@ -130,7 +116,7 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
     wtr.write_record(None::<&[u8]>)?;
     wtr.flush()?;
 
-    let mut history: Vec<(GroupingData, StringRecord)> = Vec::new();
+    let mut history: Vec<(Vec<String>, Consequence, StringRecord)> = Vec::new();
     for result in rdr.records() {
         let record = result?;
 
@@ -151,28 +137,19 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
 
         // TODO: This should be done using peeking.
         if history.len() > 0 {
-            let previous: &(GroupingData, StringRecord) = history.last().unwrap();
-            if previous.0.variant_values != variant_values {
+            let previous: &(Vec<String>, Consequence, StringRecord) = history.last().unwrap();
+            if previous.0 != variant_values {
                 // History contains all rows for a specific variant because we found a new one
-                let protein_coding_annotations: Vec<&(GroupingData, StringRecord)> = history
+                // Process existing history
+                let annotations: Consequences = history
                     .iter()
-                    .filter(|(group, _)| group.protein_coding)
+                    .map(|(_, consequence, _)| consequence.to_owned())
                     .collect();
 
-                let mut group_values: Vec<Vec<String>> = protein_coding_annotations
-                    .iter()
-                    .map(|(group, _)| {
-                        let mut group_values = group.group_values.clone();
-                        group_values.push(group.gene_id.to_string());
-                        group_values
-                    })
-                    .collect();
+                let pext_scores = calculate_pext(annotations, table)?;
 
-                group_values.sort();
-                group_values.dedup();
-
-                if group_values.len() == 0 {
-                    for (_, record) in &history {
+                if pext_scores.is_none() {
+                    for (_, _, record) in &history {
                         for s in record {
                             wtr.write_field(s)?;
                         }
@@ -182,76 +159,7 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
                     wtr.flush()?;
                     history.clear();
                 } else {
-                    // Already tested that there is at least one group, so we can just unwrap
-                    let gene_id = group_values.first().unwrap().last().unwrap();
-                    let gene_transcript_ids = table.get_gene_transcripts(&gene_id)?;
-                    let gene_transcript_tpms_result: Result<Vec<&Vec<f32>>, _> =
-                        gene_transcript_ids
-                            .iter()
-                            .map(|transcript_id| table.get_transcript_tpms(transcript_id))
-                            .collect();
-
-                    let gene_transcript_tpms = gene_transcript_tpms_result?;
-
-                    let gene_tpms: Vec<f32> = column_sums(&gene_transcript_tpms);
-
-                    let grouped_transcript_ids: Vec<Vec<&str>> = group_values
-                        .iter()
-                        .map(|unique_group| {
-                            let transcript_ids: Vec<&str> = protein_coding_annotations
-                                .iter()
-                                .map(|(group, _)| {
-                                    let mut group_values = group.group_values.clone();
-                                    group_values.push(group.gene_id.to_string());
-                                    (group_values, group.transcript_id.as_str())
-                                })
-                                .filter(|(group, _)| unique_group == group)
-                                .map(|(_, transcript_id)| transcript_id)
-                                .collect();
-
-                            transcript_ids
-                        })
-                        .collect();
-
-                    let mut group_scores: Vec<Option<f32>> = Vec::with_capacity(group_values.len());
-                    for transcript_ids in grouped_transcript_ids {
-                        let group_transcript_tpms: Vec<&Vec<f32>> = gene_transcript_ids
-                            .iter()
-                            .zip(&gene_transcript_tpms)
-                            .filter(|(id, _)| transcript_ids.contains(&id.as_str()))
-                            .map(|(_, &tpms)| tpms)
-                            .collect();
-
-                        let group_tpms: Vec<f32> = column_sums(&group_transcript_tpms);
-
-                        let ratios: Vec<f32> = group_tpms
-                            .iter()
-                            .zip(&gene_tpms)
-                            .filter(|&(_, &gene)| gene > 0.0)
-                            .map(|(group, gene)| group / gene)
-                            .collect();
-
-                        let score: f32 = ratios.iter().sum::<f32>() / ratios.len() as f32;
-
-                        if score.is_nan() {
-                            group_scores.push(None);
-                            continue;
-                        }
-
-                        group_scores.push(Some(score));
-                    }
-
-                    for (grouping, record) in &history {
-                        let mut group = grouping.group_values.clone();
-                        group.push(grouping.gene_id.clone());
-
-                        let score: Option<f32> = group_values
-                            .iter()
-                            .zip(&group_scores)
-                            .find(|(score_group, _)| group == **score_group)
-                            .map(|(_, &score)| score)
-                            .unwrap_or(None);
-
+                    for ((_, _, record), score) in history.iter().zip(pext_scores.unwrap()) {
                         for s in record {
                             wtr.write_field(s)?;
                         }
@@ -264,7 +172,6 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
                         wtr.write_record(None::<&[u8]>)?;
                     }
                     wtr.flush()?;
-
                     history.clear();
                 }
             }
@@ -291,42 +198,31 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
                     .ok_or("Could not find a group column value, your column may not exist or your TSV may be malformed")
             })
             .collect();
+
         let group_values: Vec<String> = group_values_result?
             .into_iter()
             .map(|s| s.to_string())
             .collect();
 
-        let record_keys = GroupingData {
-            variant_values: variant_values,
-            gene_id: gene.to_string(),
-            transcript_id: transcript.to_string(),
-            protein_coding: biotype == "protein_coding",
-            group_values: group_values,
-        };
+        let consequence = Consequence::from_fields(
+            gene.to_string(),
+            transcript.to_string(),
+            biotype.to_string(),
+            group_values,
+        );
 
-        history.push((record_keys, record.clone()));
+        history.push((variant_values, consequence, record.clone()));
     }
 
-    // Process leftover in history
-    let protein_coding_annotations: Vec<&(GroupingData, StringRecord)> = history
+    let annotations: Consequences = history
         .iter()
-        .filter(|(group, _)| group.protein_coding)
+        .map(|(_, consequence, _)| consequence.to_owned())
         .collect();
 
-    let mut group_values: Vec<Vec<String>> = protein_coding_annotations
-        .iter()
-        .map(|(group, _)| {
-            let mut group_values = group.group_values.clone();
-            group_values.push(group.gene_id.to_string());
-            group_values
-        })
-        .collect();
+    let pext_scores = calculate_pext(annotations, table)?;
 
-    group_values.sort();
-    group_values.dedup();
-
-    if group_values.len() == 0 {
-        for (_, record) in &history {
+    if pext_scores.is_none() {
+        for (_, _, record) in &history {
             for s in record {
                 wtr.write_field(s)?;
             }
@@ -334,77 +230,10 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
             wtr.write_record(None::<&[u8]>)?;
         }
         wtr.flush()?;
-        return Ok(());
+        history.clear();
     }
 
-    // Already tested that there is at least one group, so we can just unwrap
-    let gene_id = group_values.first().unwrap().last().unwrap();
-    let gene_transcript_ids = table.get_gene_transcripts(&gene_id)?;
-    let gene_transcript_tpms_result: Result<Vec<&Vec<f32>>, _> = gene_transcript_ids
-        .iter()
-        .map(|transcript_id| table.get_transcript_tpms(transcript_id))
-        .collect();
-    let gene_transcript_tpms = gene_transcript_tpms_result?;
-
-    let gene_tpms: Vec<f32> = column_sums(&gene_transcript_tpms);
-
-    let grouped_transcript_ids: Vec<Vec<&str>> = group_values
-        .iter()
-        .map(|unique_group| {
-            let transcript_ids: Vec<&str> = protein_coding_annotations
-                .iter()
-                .map(|(group, _)| {
-                    let mut group_values = group.group_values.clone();
-                    group_values.push(group.gene_id.to_string());
-                    (group_values, group.transcript_id.as_str())
-                })
-                .filter(|(group, _)| unique_group == group)
-                .map(|(_, transcript_id)| transcript_id)
-                .collect();
-
-            transcript_ids
-        })
-        .collect();
-
-    let mut group_scores: Vec<Option<f32>> = Vec::with_capacity(group_values.len());
-    for transcript_ids in grouped_transcript_ids {
-        let group_transcript_tpms: Vec<&Vec<f32>> = gene_transcript_ids
-            .iter()
-            .zip(&gene_transcript_tpms)
-            .filter(|(id, _)| transcript_ids.contains(&id.as_str()))
-            .map(|(_, &tpms)| tpms)
-            .collect();
-
-        let group_tpms: Vec<f32> = column_sums(&group_transcript_tpms);
-
-        let ratios: Vec<f32> = group_tpms
-            .iter()
-            .zip(&gene_tpms)
-            .filter(|&(_, &gene)| gene > 0.0)
-            .map(|(group, gene)| group / gene)
-            .collect();
-
-        let score: f32 = ratios.iter().sum::<f32>() / ratios.len() as f32;
-
-        if score.is_nan() {
-            group_scores.push(None);
-            continue;
-        }
-
-        group_scores.push(Some(score));
-    }
-
-    for (grouping, record) in &history {
-        let mut group = grouping.group_values.clone();
-        group.push(grouping.gene_id.clone());
-
-        let score: Option<f32> = group_values
-            .iter()
-            .zip(&group_scores)
-            .find(|(score_group, _)| group == **score_group)
-            .map(|(_, &score)| score)
-            .unwrap_or(None);
-
+    for ((_, _, record), score) in history.iter().zip(pext_scores.unwrap()) {
         for s in record {
             wtr.write_field(s)?;
         }
@@ -417,6 +246,7 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
         wtr.write_record(None::<&[u8]>)?;
     }
     wtr.flush()?;
+    history.clear();
 
     Ok(())
 }

@@ -4,10 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bgzf = "0.3.0"
 clap = { version = "4.6.1", features = ["derive"] }
 csv = "1.4.0"
+derive_more = { version = "2.1.1", features = ["deref", "deref_mut", "into_iterator", "from"] }
 flate2 = "1.1.9"
-noodles-bgzf = "0.47.0"
+mimalloc = "0.1.52"
+noodles-bgzf = { version = "0.47.0", features = ["libdeflate"] }
 noodles-core = "0.20.0"
 noodles-gff = "0.57.0"
 noodles-vcf = "0.88.0"
@@ -15,3 +18,5 @@ rustc-hash = "2.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
 strum = { version = "0.28.0", features = ["derive"] }
 
+[profile.release]
+lto = "fat"
