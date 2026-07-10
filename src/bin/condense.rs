@@ -30,9 +30,17 @@ struct Args {
 
     #[arg(long)]
     coding_transcripts: PathBuf,
+
+    #[arg(long, default_value_t = default_min_samples())]
+    min_samples_per_tissue: usize,
+
     // gff3: PathBuf,
     #[arg(long)]
     output: PathBuf,
+}
+
+fn default_min_samples() -> usize {
+    100
 }
 
 #[derive(Debug, PartialEq, Eq, Deserialize)]
@@ -89,8 +97,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         read_sample_attributes(args.gtex_sample_attributes, &blacklisted_tissues)?;
     let coding_transcripts = read_lines(args.coding_transcripts)?;
 
-    let table =
-        GTExTable::create_from_gtex(args.gtex_tpms, &samples_per_tissue, &coding_transcripts)?;
+    let table = GTExTable::create_from_gtex(
+        args.gtex_tpms,
+        &samples_per_tissue,
+        &coding_transcripts,
+        args.min_samples_per_tissue.try_into()?,
+    )?;
     table.write(args.output)?;
 
     Ok(())

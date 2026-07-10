@@ -39,6 +39,7 @@ impl GTExTable {
         path: P,
         samples_per_tissue: &HashMap<String, Vec<String>>,
         coding_transcripts: &[S],
+        min_samples_per_tissue: usize,
     ) -> Result<Self, Box<dyn Error>> {
         let mut rdr = build_tsv_reader(path)?;
 
@@ -55,7 +56,7 @@ impl GTExTable {
                     .collect::<Vec<usize>>();
                 (tissue.as_str(), idxs)
             })
-            .filter(|(_, samples)| samples.len() > 0)
+            .filter(|(_, samples)| samples.len() > min_samples_per_tissue)
             .collect();
 
         // Create HashSet for coding_transcripts for quick lookup
