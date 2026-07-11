@@ -109,7 +109,7 @@ pub fn calculate_pext(
                 .map(|(c, g)| c / g)
                 .collect();
 
-            let score: f32 = ratios.iter().sum::<f32>() / ratios.len() as f32;
+            let score: f32 = ratios.iter().sum::<f32>() / summed_annotation_tpms.len() as f32;
 
             if score.is_nan() {
                 annotation_scores.push((owned_annotation, None));
