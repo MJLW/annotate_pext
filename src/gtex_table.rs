@@ -38,7 +38,7 @@ impl GTExTable {
     pub fn create_from_gtex<P: AsRef<Path>, S: AsRef<str>>(
         path: P,
         samples_per_tissue: &HashMap<String, Vec<String>>,
-        coding_transcripts: &[S],
+        transcript_whitelist: Option<Vec<S>>,
         min_samples_per_tissue: usize,
     ) -> Result<Self, Box<dyn Error>> {
         let mut rdr = build_tsv_reader(path)?;
@@ -60,10 +60,13 @@ impl GTExTable {
             .collect();
 
         // Create HashSet for coding_transcripts for quick lookup
-        let hashed_coding_transcripts: FxHashSet<String> = coding_transcripts
-            .into_iter()
-            .map(|s| s.as_ref().to_string())
-            .collect();
+        let has_transcript_whitelist = transcript_whitelist.is_some();
+        let hashed_transcript_whitelist: FxHashSet<String> =
+            if let Some(result) = transcript_whitelist {
+                result.into_iter().map(|s| s.as_ref().to_string()).collect()
+            } else {
+                FxHashSet::default()
+            };
 
         // Get median TPM per tissue for each coding transcript
         let mut keys: Vec<GTExRowKey> = Vec::new();
@@ -72,9 +75,10 @@ impl GTExTable {
         while rdr.read_record(&mut record)? {
             let key: GTExRowKey = record.deserialize(Some(&headers))?;
 
-            // Not coding, skip!
-            if !hashed_coding_transcripts
-                .contains(strip_ensembl_version(key.transcript_id.clone())?.as_str())
+            // If coding transcripts passed and not coding, skip!
+            if has_transcript_whitelist
+                && hashed_transcript_whitelist
+                    .contains(strip_ensembl_version(key.transcript_id.clone())?.as_str())
             {
                 continue;
             }

@@ -78,7 +78,13 @@ pub fn calculate_pext(
             .transcript_id
             .to_string();
 
-        let gene_id = table.get_transcript_gene(&first_transcript_id)?;
+        let gene_id_result = table.get_transcript_gene(&first_transcript_id);
+
+        if !gene_id_result.is_ok() {
+            continue;
+        }
+
+        let gene_id = gene_id_result?;
 
         let gene_tpms = table.get_gene_transcript_tpms(&gene_id)?;
         let summed_gene_tpms = column_sums(&gene_tpms);
@@ -95,12 +101,19 @@ pub fn calculate_pext(
                 continue;
             }
 
-            let annotation_tpms: Result<Vec<&Vec<f32>>, _> = annotations
+            let annotation_tpms_result: Result<Vec<&Vec<f32>>, _> = annotations
                 .iter()
                 .map(|a| table.get_transcript_tpms(&a.transcript_id))
                 .collect();
 
-            let summed_annotation_tpms: Vec<f32> = column_sums(&annotation_tpms?);
+            if !annotation_tpms_result.is_ok() {
+                annotation_scores.push((owned_annotation, None));
+                continue;
+            }
+
+            let annotation_tpms = annotation_tpms_result?;
+
+            let summed_annotation_tpms: Vec<f32> = column_sums(&annotation_tpms);
 
             let ratios: Vec<f32> = summed_annotation_tpms
                 .iter()
@@ -109,7 +122,7 @@ pub fn calculate_pext(
                 .map(|(c, g)| c / g)
                 .collect();
 
-            let score: f32 = ratios.iter().sum::<f32>() / summed_annotation_tpms.len() as f32;
+            let score: f32 = ratios.iter().sum::<f32>() / ratios.len() as f32;
 
             if score.is_nan() {
                 annotation_scores.push((owned_annotation, None));

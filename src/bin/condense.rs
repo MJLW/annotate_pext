@@ -29,7 +29,7 @@ struct Args {
     tissue_blacklist: PathBuf,
 
     #[arg(long)]
-    coding_transcripts: PathBuf,
+    coding_transcripts: Option<PathBuf>,
 
     #[arg(long, default_value_t = default_min_samples())]
     min_samples_per_tissue: usize,
@@ -95,12 +95,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     let blacklisted_tissues: Vec<String> = read_lines(args.tissue_blacklist)?;
     let samples_per_tissue =
         read_sample_attributes(args.gtex_sample_attributes, &blacklisted_tissues)?;
-    let coding_transcripts = read_lines(args.coding_transcripts)?;
+
+    // Should we filter to coding transcripts or not?
+    let coding_transcripts: Option<Vec<String>> = if let Some(file_path) = args.coding_transcripts {
+        Some(read_lines(file_path)?)
+    } else {
+        None
+    };
 
     let table = GTExTable::create_from_gtex(
         args.gtex_tpms,
         &samples_per_tissue,
-        &coding_transcripts,
+        coding_transcripts,
         args.min_samples_per_tissue.try_into()?,
     )?;
     table.write(args.output)?;

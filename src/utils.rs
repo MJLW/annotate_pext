@@ -1,9 +1,7 @@
-use std::{collections::HashMap, error::Error, fs::File, io::Read, path::Path};
+use std::{error::Error, fs::File, io::Read, path::Path};
 
 use csv::{Reader, ReaderBuilder};
 use flate2::read::GzDecoder;
-
-use crate::{consequence::Consequence, consequences::Consequences, gtex_table::GTExTable};
 
 pub fn build_tsv_reader<P: AsRef<Path>>(path: P) -> Result<Reader<Box<dyn Read>>, Box<dyn Error>> {
     let file = File::open(&path)?;
