@@ -25,9 +25,6 @@ struct Args {
     transcript_id_column: String,
 
     #[arg(long)]
-    gene_id_column: String,
-
-    #[arg(long)]
     biotype_column: String,
 
     #[arg(long, value_delimiter = ',')]
@@ -46,7 +43,6 @@ struct Args {
 struct GroupingColumns {
     variant_columns: Vec<String>,
     transcript_column: String,
-    gene_column: String,
     biotype_column: String,
     group_columns: Vec<String>,
 }
@@ -88,8 +84,6 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
         .map(|variant_column| find_header_index(header_index.clone(), variant_column))
         .collect();
     let variant_indices = variant_indices_result?;
-
-    let gene_index: usize = find_header_index(header_index.clone(), &grouping.gene_column)?;
 
     let transcript_index: usize =
         find_header_index(header_index.clone(), &grouping.transcript_column)?;
@@ -176,9 +170,6 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
         }
 
         // Get annotations
-        let gene: &str = record.get(gene_index).ok_or(
-            "No gene value found, your column may not exist or your TSV may be malformed.",
-        )?;
 
         let transcript: &str = record.get(transcript_index).ok_or(
             "No transcript value found, your column may not exist or your TSV may be malformed.",
@@ -201,6 +192,8 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
             .into_iter()
             .map(|s| s.to_string())
             .collect();
+
+        let gene = table.get_transcript_gene(transcript)?;
 
         let consequence = Consequence::from_fields(
             gene.to_string(),
@@ -253,7 +246,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     let grouping = GroupingColumns {
         variant_columns: args.variant_columns,
-        gene_column: args.gene_id_column,
         transcript_column: args.transcript_id_column,
         biotype_column: args.biotype_column,
         group_columns: args.group_columns,

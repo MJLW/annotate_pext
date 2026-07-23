@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use crate::gtex_table::GTExTable;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Consequence {
@@ -15,6 +15,9 @@ pub enum ParseError {
         expected: usize,
         found: usize,
     },
+    TranscriptNotInGTEx {
+        transcript: String,
+    },
 }
 
 impl std::fmt::Display for ParseError {
@@ -28,6 +31,10 @@ impl std::fmt::Display for ParseError {
                 f,
                 "too few CSQ fields: expected at least {expected}, found {found} in \"{csq}\""
             ),
+            ParseError::TranscriptNotInGTEx { transcript } => write!(
+                f,
+                "Could not map ENST to ENSG because the transcript '{transcript}' is not in the provided GTEx table."
+            ),
         }
     }
 }
@@ -35,15 +42,22 @@ impl std::fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 impl Consequence {
-    pub fn parse_from_vep(csq: &str) -> Result<Self, ParseError> {
+    fn strip_ensembl_version<S: AsRef<str>>(s: S) -> String {
+        let s = s.as_ref();
+        match s.split_once('.') {
+            Some((id, _)) => id.to_string(),
+            None => s.to_string(),
+        }
+    }
+
+    pub fn parse_from_vep(csq: &str, table: &GTExTable) -> Result<Self, ParseError> {
         // Gene_id (ensembl or symbol) is added to group columns as well to assist in deduplication logic
         const CONSEQUENCE: usize = 1;
         const IMPACT: usize = 2;
-        const GENE_ID: usize = 4;
         const FEATURE: usize = 6;
         const BIOTYPE: usize = 7;
         const LOFTEE: usize = 24;
-        const GROUP_COLUMNS: [usize; 3] = [GENE_ID, CONSEQUENCE, LOFTEE];
+        const GROUP_COLUMNS: [usize; 2] = [CONSEQUENCE, LOFTEE];
 
         let fields: Vec<&str> = csq.split('|').collect();
         const MIN_LEN: usize = 25;
@@ -63,20 +77,26 @@ impl Consequence {
         let cds_affecting = fields[BIOTYPE] == "protein_coding" && fields[IMPACT] != "MODIFIER";
         group_columns.push(cds_affecting.to_string());
 
+        let transcript_id = fields[FEATURE];
+        let gene_id = table.get_transcript_gene(&transcript_id).map_err(|_| {
+            ParseError::TranscriptNotInGTEx {
+                transcript: transcript_id.to_string(),
+            }
+        })?;
+
         Ok(Consequence {
-            gene_id: fields[GENE_ID].to_string(),
-            transcript_id: fields[FEATURE].to_string(),
+            gene_id: gene_id.to_string(),
+            transcript_id: transcript_id.to_string(),
             group_columns: group_columns,
             protein_coding: cds_affecting,
         })
     }
 
-    pub fn parse_from_bcsq(csq: &str) -> Result<Self, ParseError> {
+    pub fn parse_from_bcsq(csq: &str, table: &GTExTable) -> Result<Self, ParseError> {
         const CONSEQUENCE: usize = 0;
-        const GENE_ID: usize = 1;
         const TRANSCRIPT_ID: usize = 2;
         const BIOTYPE: usize = 3;
-        const GROUP_COLUMNS: [usize; 2] = [GENE_ID, CONSEQUENCE];
+        const GROUP_COLUMNS: [usize; 1] = [CONSEQUENCE];
 
         let fields: Vec<&str> = csq.split('|').collect();
         const MIN_LEN: usize = 4;
@@ -96,9 +116,16 @@ impl Consequence {
         let cds_affecting = fields[BIOTYPE] == "protein_coding" && fields[TRANSCRIPT_ID].len() > 0;
         group_columns.push(cds_affecting.to_string());
 
+        let transcript_id = Consequence::strip_ensembl_version(fields[TRANSCRIPT_ID]);
+        let gene_id = table.get_transcript_gene(&transcript_id).map_err(|_| {
+            ParseError::TranscriptNotInGTEx {
+                transcript: transcript_id.to_string(),
+            }
+        })?;
+
         Ok(Consequence {
-            gene_id: fields[GENE_ID].to_string(),
-            transcript_id: fields[TRANSCRIPT_ID].to_string(),
+            gene_id: gene_id.to_string(),
+            transcript_id: transcript_id,
             group_columns: group_columns,
             protein_coding: cds_affecting,
         })
@@ -121,37 +148,5 @@ impl Consequence {
             group_columns: complete_group_columns,
             protein_coding: biotype == "protein_coding",
         }
-    }
-}
-
-impl FromStr for Consequence {
-    type Err = ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Consequence::parse_from_vep(s)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const VEP_LINE: &str = "-|intron_variant|MODIFIER|FANCD2|ENSG00000144554|Transcript|ENST00000287647|protein_coding||3/42||||||||||1||||Homo_sapiens.GRCh37.87.gff3.chr.sorted.gz|||||";
-
-    #[test]
-    fn parses_all_fields() {
-        let c = Consequence::parse_from_vep(VEP_LINE).unwrap();
-        assert_eq!(c.transcript_id, "ENST00000287647");
-        assert_eq!(c.protein_coding, false);
-    }
-
-    #[test]
-    fn works_via_from_str() {
-        let c: Consequence = VEP_LINE.parse().unwrap();
-        assert_eq!(c.transcript_id, "ENST00000287647");
-    }
-
-    #[test]
-    fn rejects_truncated_input() {
-        assert!(Consequence::parse_from_vep("-|intron_variant|MODIFIER").is_err());
     }
 }

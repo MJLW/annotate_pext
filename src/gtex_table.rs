@@ -249,13 +249,19 @@ impl GTExTable {
             .collect()
     }
 
-    pub fn get_transcript_gene(&self, transcript_id: &String) -> Result<&String, Box<dyn Error>> {
-        let gene_id: &String = self.transcript_gene_map.get(transcript_id).ok_or_else(|| {
-            format!(
-                "Could not find transcript `{}` in the condensed GTEx table.",
-                transcript_id
-            )
-        })?;
+    pub fn get_transcript_gene<S: AsRef<str>>(
+        &self,
+        transcript_id: S,
+    ) -> Result<&String, Box<dyn Error>> {
+        let gene_id: &String = self
+            .transcript_gene_map
+            .get(transcript_id.as_ref())
+            .ok_or_else(|| {
+                format!(
+                    "Could not find transcript `{}` in the condensed GTEx table.",
+                    transcript_id.as_ref()
+                )
+            })?;
 
         Ok(gene_id)
     }

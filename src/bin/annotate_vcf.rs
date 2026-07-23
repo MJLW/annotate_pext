@@ -25,9 +25,7 @@ use noodles_vcf::{
         },
     },
     variant::{
-        // RecordBuf,
         io::Write as _,
-        // record_buf::info::field::{Value, value::Array},
         record::info::field::{Value, value::Array},
     },
 };
@@ -163,12 +161,12 @@ fn annotate_vcf<P: AsRef<Path>, S: AsRef<str>>(
             CSQCaller::VEP => values
                 .unwrap()
                 .iter()
-                .map(|s| Consequence::parse_from_vep(s.as_str()))
+                .map(|s| Consequence::parse_from_vep(s.as_str(), table))
                 .collect(),
             CSQCaller::BCSQ => values
                 .unwrap()
                 .iter()
-                .map(|s| Consequence::parse_from_bcsq(s.as_str()))
+                .map(|s| Consequence::parse_from_bcsq(s.as_str(), table))
                 .collect(),
         };
 

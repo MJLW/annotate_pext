@@ -67,24 +67,12 @@ pub fn calculate_pext(
             continue;
         }
 
-        // This one is a bit messy, but unfortunately necessary
-        // The unwraps can be done without checks because the values cannot logically be missing
-        // Because BCSQ doesn't have ENSEMBL gene ids, we have to go from transcript -> gene, so
-        // we just select the first transcript and go to gene from that
-        let first_transcript_id = protein_coding_annotations
-            .iter()
-            .find(|a| a.gene_id == *gene_annotations.first().unwrap().get(0).unwrap())
+        let gene_id = gene_annotations
+            .first()
             .unwrap()
-            .transcript_id
+            .get(0)
+            .unwrap()
             .to_string();
-
-        let gene_id_result = table.get_transcript_gene(&first_transcript_id);
-
-        if !gene_id_result.is_ok() {
-            continue;
-        }
-
-        let gene_id = gene_id_result?;
 
         let gene_tpms = table.get_gene_transcript_tpms(&gene_id)?;
         let summed_gene_tpms = column_sums(&gene_tpms);
