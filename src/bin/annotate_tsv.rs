@@ -27,6 +27,9 @@ struct Args {
     #[arg(long)]
     biotype_column: String,
 
+    #[arg(long)]
+    consequence_column: String,
+
     #[arg(long, value_delimiter = ',')]
     group_columns: Vec<String>,
 
@@ -44,6 +47,7 @@ struct GroupingColumns {
     variant_columns: Vec<String>,
     transcript_column: String,
     biotype_column: String,
+    consequence_column: String,
     group_columns: Vec<String>,
 }
 
@@ -89,6 +93,9 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
         find_header_index(header_index.clone(), &grouping.transcript_column)?;
 
     let biotype_index: usize = find_header_index(header_index.clone(), &grouping.biotype_column)?;
+
+    let consequence_index: usize =
+        find_header_index(header_index.clone(), &grouping.consequence_column)?;
 
     let group_indices_result: Result<Vec<usize>, _> = grouping
         .group_columns
@@ -170,13 +177,16 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
         }
 
         // Get annotations
-
         let transcript: &str = record.get(transcript_index).ok_or(
             "No transcript value found, your column may not exist or your TSV may be malformed.",
         )?;
 
         let biotype: &str = record.get(biotype_index).ok_or(
             "No biotype value found, your column may not exist or your TSV may be malformed.",
+        )?;
+
+        let consequence: &str = record.get(consequence_index).ok_or(
+            "No consequence value found, your column may not exist or your TSV may be malformed.",
         )?;
 
         let group_values_result: Result<Vec<&str>, _> = group_indices
@@ -199,6 +209,7 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
             gene.to_string(),
             transcript.to_string(),
             biotype.to_string(),
+            consequence.to_string(),
             group_values,
         );
 
@@ -248,6 +259,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         variant_columns: args.variant_columns,
         transcript_column: args.transcript_id_column,
         biotype_column: args.biotype_column,
+        consequence_column: args.consequence_column,
         group_columns: args.group_columns,
     };
 

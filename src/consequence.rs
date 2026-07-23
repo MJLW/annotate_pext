@@ -6,6 +6,7 @@ pub struct Consequence {
     pub gene_id: String,
     pub group_columns: Vec<String>,
     pub protein_coding: bool,
+    pub consequence: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,11 +85,14 @@ impl Consequence {
             }
         })?;
 
+        group_columns.push(gene_id.to_string());
+
         Ok(Consequence {
             gene_id: gene_id.to_string(),
             transcript_id: transcript_id.to_string(),
             group_columns: group_columns,
             protein_coding: cds_affecting,
+            consequence: fields[CONSEQUENCE].to_string(),
         })
     }
 
@@ -123,11 +127,14 @@ impl Consequence {
             }
         })?;
 
+        group_columns.push(gene_id.to_string());
+
         Ok(Consequence {
             gene_id: gene_id.to_string(),
             transcript_id: transcript_id,
             group_columns: group_columns,
             protein_coding: cds_affecting,
+            consequence: fields[CONSEQUENCE].to_string(),
         })
     }
 
@@ -135,6 +142,7 @@ impl Consequence {
         gene_id: String,
         transcript_id: String,
         biotype: String,
+        consequence: String,
         group_columns: Vec<String>,
     ) -> Self {
         let mut complete_group_columns = Vec::with_capacity(group_columns.len() + 3);
@@ -147,6 +155,7 @@ impl Consequence {
             transcript_id: transcript_id,
             group_columns: complete_group_columns,
             protein_coding: biotype == "protein_coding",
+            consequence: consequence,
         }
     }
 }

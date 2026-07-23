@@ -1,6 +1,6 @@
 use std::{collections::HashMap, error::Error};
 
-use crate::{consequence::Consequence, consequences::Consequences, gtex_table::GTExTable};
+use crate::{consequences::Consequences, gtex_table::GTExTable};
 
 trait ToStringVec {
     fn to_string_vec(&self) -> Vec<String>;
@@ -34,23 +34,23 @@ pub fn calculate_pext(
 
     let annotation_groups = protein_coding_annotations.unique_groups();
     let genes = protein_coding_annotations.unique_genes();
-    let transcript_ids: Vec<&str> = protein_coding_annotations
+    let transcript_csq_pairs: Vec<(&str, &str)> = protein_coding_annotations
         .iter()
-        .map(|a| a.transcript_id.as_str())
+        .map(|a| (a.transcript_id.as_str(), a.consequence.as_str()))
         .collect();
 
-    let transcript_counts =
-        transcript_ids
-            .iter()
-            .fold(HashMap::<&str, usize>::new(), |mut m, x| {
+    let transcript_csq_counts =
+        transcript_csq_pairs
+            .into_iter()
+            .fold(HashMap::<(&str, &str), usize>::new(), |mut m, x| {
                 *m.entry(x).or_default() += 1;
                 m
             });
 
-    let has_incorrectly_split_multiallelic = transcript_counts.iter().any(|(_, &count)| count > 1);
+    let has_incorrectly_split_multiallelic =
+        transcript_csq_counts.iter().any(|(_, &count)| count > 1);
 
     if annotation_groups.len() == 0 || has_incorrectly_split_multiallelic {
-        // TODO: Warn in case of incorrectly split multiallelic
         return Ok(None);
     }
 
@@ -59,7 +59,7 @@ pub fn calculate_pext(
     for gene in genes {
         let gene_annotations: Vec<&Vec<&str>> = annotation_groups
             .iter()
-            .filter(|a| a.get(0).unwrap() == &gene)
+            .filter(|a| a.last().unwrap() == &gene)
             .collect();
 
         if gene_annotations.len() == 0 {
@@ -70,7 +70,7 @@ pub fn calculate_pext(
         let gene_id = gene_annotations
             .first()
             .unwrap()
-            .get(0)
+            .last()
             .unwrap()
             .to_string();
 
@@ -79,19 +79,25 @@ pub fn calculate_pext(
 
         for annotation in gene_annotations {
             let owned_annotation = annotation.to_string_vec();
-            let annotations: Vec<&Consequence> = protein_coding_annotations
+
+            // Get unique transcripts
+            let mut transcripts: Vec<&str> = protein_coding_annotations
                 .iter()
                 .filter(|a| a.group_columns == owned_annotation)
+                .map(|a| a.transcript_id.as_str())
                 .collect();
 
-            if annotations.len() == 0 {
+            transcripts.sort();
+            transcripts.dedup();
+
+            if transcripts.len() == 0 {
                 annotation_scores.push((owned_annotation, None));
                 continue;
             }
 
-            let annotation_tpms_result: Result<Vec<&Vec<f32>>, _> = annotations
-                .iter()
-                .map(|a| table.get_transcript_tpms(&a.transcript_id))
+            let annotation_tpms_result: Result<Vec<&Vec<f32>>, _> = transcripts
+                .into_iter()
+                .map(|transcript| table.get_transcript_tpms(transcript))
                 .collect();
 
             if !annotation_tpms_result.is_ok() {

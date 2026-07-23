@@ -214,13 +214,19 @@ impl GTExTable {
         Ok(())
     }
 
-    pub fn get_transcript_tpms(&self, transcript_id: &String) -> Result<&Vec<f32>, Box<dyn Error>> {
-        let transcript_tpms = self.transcript_tpms.get(transcript_id).ok_or_else(|| {
-            format!(
-                "Could not find transcript `{}` in the condensed GTEx table.",
-                transcript_id
-            )
-        })?;
+    pub fn get_transcript_tpms<S: AsRef<str>>(
+        &self,
+        transcript_id: S,
+    ) -> Result<&Vec<f32>, Box<dyn Error>> {
+        let transcript_tpms = self
+            .transcript_tpms
+            .get(transcript_id.as_ref())
+            .ok_or_else(|| {
+                format!(
+                    "Could not find transcript `{}` in the condensed GTEx table.",
+                    transcript_id.as_ref()
+                )
+            })?;
 
         Ok(transcript_tpms)
     }
