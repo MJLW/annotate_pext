@@ -1,6 +1,6 @@
 use std::{collections::HashMap, error::Error};
 
-use crate::{consequences::Consequences, gtex_table::GTExTable};
+use crate::{consequence::ConsequenceType, consequences::Consequences, gtex_table::GTExTable};
 
 trait ToStringVec {
     fn to_string_vec(&self) -> Vec<String>;
@@ -26,26 +26,27 @@ pub fn calculate_pext(
     annotations: Consequences,
     table: &GTExTable,
 ) -> Result<Option<Vec<Option<f32>>>, Box<dyn Error>> {
-    let protein_coding_annotations: Consequences = annotations
+    let protein_affecting_annotations: Consequences = annotations
         .clone()
         .into_iter()
-        .filter(|a| a.protein_coding)
+        .filter(|a| a.protein_affecting)
         .collect();
 
-    let annotation_groups = protein_coding_annotations.unique_groups();
-    let genes = protein_coding_annotations.unique_genes();
-    let transcript_csq_pairs: Vec<(&str, &str)> = protein_coding_annotations
+    let annotation_groups = protein_affecting_annotations.unique_groups();
+    let genes = protein_affecting_annotations.unique_genes();
+
+    let transcript_csq_pairs: Vec<(&str, &ConsequenceType)> = protein_affecting_annotations
         .iter()
-        .map(|a| (a.transcript_id.as_str(), a.consequence.as_str()))
+        .map(|a| (a.transcript_id.as_str(), &a.consequence_type))
         .collect();
 
-    let transcript_csq_counts =
-        transcript_csq_pairs
-            .into_iter()
-            .fold(HashMap::<(&str, &str), usize>::new(), |mut m, x| {
-                *m.entry(x).or_default() += 1;
-                m
-            });
+    let transcript_csq_counts = transcript_csq_pairs.into_iter().fold(
+        HashMap::<(&str, &ConsequenceType), usize>::new(),
+        |mut m, x| {
+            *m.entry(x).or_default() += 1;
+            m
+        },
+    );
 
     let has_incorrectly_split_multiallelic =
         transcript_csq_counts.iter().any(|(_, &count)| count > 1);
@@ -59,7 +60,7 @@ pub fn calculate_pext(
     for gene in genes {
         let gene_annotations: Vec<&Vec<&str>> = annotation_groups
             .iter()
-            .filter(|a| a.last().unwrap() == &gene)
+            .filter(|a| a.first().unwrap() == &gene)
             .collect();
 
         if gene_annotations.len() == 0 {
@@ -70,7 +71,7 @@ pub fn calculate_pext(
         let gene_id = gene_annotations
             .first()
             .unwrap()
-            .last()
+            .first()
             .unwrap()
             .to_string();
 
@@ -81,7 +82,7 @@ pub fn calculate_pext(
             let owned_annotation = annotation.to_string_vec();
 
             // Get unique transcripts
-            let mut transcripts: Vec<&str> = protein_coding_annotations
+            let mut transcripts: Vec<&str> = protein_affecting_annotations
                 .iter()
                 .filter(|a| a.group_columns == owned_annotation)
                 .map(|a| a.transcript_id.as_str())
@@ -129,11 +130,7 @@ pub fn calculate_pext(
     // Match back scores to original annotation order
     let annotated_scores: Vec<Option<f32>> = annotations
         .iter()
-        .map(|a| {
-            annotation_scores
-                .iter()
-                .find(|s| (s.0 == a.group_columns) && a.protein_coding)
-        })
+        .map(|a| annotation_scores.iter().find(|s| s.0 == a.group_columns))
         .map(|s| match Some(s) {
             Some(Some(annotation_score)) => annotation_score.1,
             Some(_) => None,

@@ -25,9 +25,6 @@ struct Args {
     transcript_id_column: String,
 
     #[arg(long)]
-    biotype_column: String,
-
-    #[arg(long)]
     consequence_column: String,
 
     #[arg(long, value_delimiter = ',')]
@@ -46,7 +43,6 @@ struct Args {
 struct GroupingColumns {
     variant_columns: Vec<String>,
     transcript_column: String,
-    biotype_column: String,
     consequence_column: String,
     group_columns: Vec<String>,
 }
@@ -91,8 +87,6 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
 
     let transcript_index: usize =
         find_header_index(header_index.clone(), &grouping.transcript_column)?;
-
-    let biotype_index: usize = find_header_index(header_index.clone(), &grouping.biotype_column)?;
 
     let consequence_index: usize =
         find_header_index(header_index.clone(), &grouping.consequence_column)?;
@@ -181,10 +175,6 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
             "No transcript value found, your column may not exist or your TSV may be malformed.",
         )?;
 
-        let biotype: &str = record.get(biotype_index).ok_or(
-            "No biotype value found, your column may not exist or your TSV may be malformed.",
-        )?;
-
         let consequence: &str = record.get(consequence_index).ok_or(
             "No consequence value found, your column may not exist or your TSV may be malformed.",
         )?;
@@ -206,12 +196,11 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
         let gene = table.get_transcript_gene(transcript)?;
 
         let consequence = Consequence::from_fields(
+            consequence.to_string(),
             gene.to_string(),
             transcript.to_string(),
-            biotype.to_string(),
-            consequence.to_string(),
             group_values,
-        );
+        )?;
 
         history.push((variant_values, consequence, record.clone()));
     }
@@ -233,6 +222,7 @@ fn annotate_tsv<P: AsRef<Path>, S: AsRef<str>>(
         }
         wtr.flush()?;
         history.clear();
+        return Ok(());
     }
 
     for ((_, _, record), score) in history.iter().zip(pext_scores.unwrap()) {
@@ -258,7 +248,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let grouping = GroupingColumns {
         variant_columns: args.variant_columns,
         transcript_column: args.transcript_id_column,
-        biotype_column: args.biotype_column,
         consequence_column: args.consequence_column,
         group_columns: args.group_columns,
     };

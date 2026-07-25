@@ -77,7 +77,7 @@ impl GTExTable {
 
             // If coding transcripts passed and not coding, skip!
             if has_transcript_whitelist
-                && hashed_transcript_whitelist
+                && !hashed_transcript_whitelist
                     .contains(strip_ensembl_version(key.transcript_id.clone())?.as_str())
             {
                 continue;

@@ -25,12 +25,8 @@ impl Consequences {
     pub fn unique_transcripts(&self) -> Vec<&str> {
         let mut transcript_ids: Vec<&str> = self.iter().map(|c| c.transcript_id.as_str()).collect();
 
-        println!("{:?}", transcript_ids);
-
         transcript_ids.sort();
         transcript_ids.dedup();
-
-        println!("{:?}", transcript_ids);
 
         transcript_ids
     }
