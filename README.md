@@ -23,7 +23,6 @@ Where:
  - `gtex_transcript_tpms` is the GTEx bulk expression tpms file (see https://www.gtexportal.org/home/downloads/adult-gtex/bulk_tissue_expression).
  - `sample_attributes` is the GTEx sample attributes file (.txt) associated with the bulk expression tpms (see https://www.gtexportal.org/home/downloads/adult-gtex/metadata).
  - `tissue_blacklist` is a file that should contain all tissues that should be excluded (e.g, cell lines, sexual organs), separated by newlines.
- - `coding_transcripts` is a file that should contain all coding transcripts without version (e.g., `ENST00000335137`, not `ENST00000335137.4`, separated by newlines. Any transcripts not in this file will not be in the condensed table.
  - `variants_tsv` is a TSV file containing lines of variant-transcript level annotations (one transcript per line).
  - `*-column(s)` describe the format of the TSV file. Should hopefully be self explanatory.
 
