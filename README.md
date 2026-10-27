@@ -1,6 +1,6 @@
 # PEXT Annotater
 
-Annotates PEXT scores for protein-coding transcripts on a TSV (2026-06-22: this differs from the current implementation of PEXT as that uses ALL transcripts). There are two steps involved in annotating the scores:
+Annotates PEXT scores for protein-coding transcripts on a TSV. There are two steps involved in annotating the scores:
  - Condensing the GTEX transcript TPMs
  - Annotating PEXT scores on TSV using the condensed table
 
@@ -14,10 +14,8 @@ Example usage:
 
 ./target/release/annotate_tsv --variants <variants_tsv> \
     --variant-columns CHROM,POS,REF,ALT \
-    --gene-id-column vepGene \
     --transcript-id-column vepFeature \
-    --biotype-column vepBIOTYPE \
-    --group-columns vepConsequence,vepLoF \
+    --group-columns vepLoF \
     --tpms <condensed_table> \
     --output <annotated_variants_tsv>
 ```
