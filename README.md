@@ -9,7 +9,6 @@ Example usage:
 ./target/release/condense --gtex-tpms <gtex_transcript_tpms> \
     --gtex-sample-attributes <sample_attributes> \
     --tissue-blacklist <tissue_blacklist> \
-    --coding-transcripts <coding_transcripts> \
     --output <condensed_table>
 
 ./target/release/annotate_tsv --variants <variants_tsv> \
